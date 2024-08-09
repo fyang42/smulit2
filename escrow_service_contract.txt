@@ -1,0 +1,108 @@
+Here's a Solidity smart contract for an Escrow Service with the requested features:
+
+```solidity
+pragma solidity ^0.8.0;
+
+contract EscrowService {
+    enum State { Created, Funded, Disputed, Released, Cancelled }
+
+    // Define roles
+    enum Role { Buyer, Seller, EscrowAgent }
+
+    // Define parties
+    address public buyer;
+    address public seller;
+    address public escrowAgent;
+
+    // Define terms
+    uint256 public amount;
+    State public state;
+
+    // Mapping to store funds
+    mapping(address => uint256) public balances;
+
+    // Event logging
+    event Deposit(address indexed buyer, uint256 amount);
+    event Release(address indexed seller, uint256 amount);
+    event Dispute(address indexed buyer, address indexed seller);
+    event Cancel(address indexed buyer);
+
+    // Constructor function
+    constructor(address _buyer, address _seller, address _escrowAgent, uint256 _amount) {
+        buyer = _buyer;
+        seller = _seller;
+        escrowAgent = _escrowAgent;
+        amount = _amount;
+        state = State.Created;
+    }
+
+    // Deposit funds into escrow by the Buyer
+    function fund() public payable {
+        require(msg.sender == buyer, "Only the Buyer can fund the escrow.");
+        require(state == State.Created, "The escrow is not in the Created state.");
+
+        balances[buyer] += msg.value;
+        balances[escrowAgent] += msg.value;
+
+        emit Deposit(buyer, msg.value);
+        state = State.Funded;
+    }
+
+    // Release funds to the Seller based on delivery confirmation or mutual agreement
+    function release() public {
+        require(msg.sender == escrowAgent, "Only the Escrow Agent can release funds.");
+        require(state == State.Funded, "The escrow is not in the Funded state.");
+
+        balances[seller] += amount;
+        balances[buyer] -= amount;
+
+        emit Release(seller, amount);
+        state = State.Released;
+    }
+
+    // Dispute resolution procedure
+    function dispute() public {
+        require(msg.sender == buyer, "Only the Buyer can initiate a dispute.");
+        require(state == State.Funded, "The escrow is not in the Funded state.");
+
+        emit Dispute(buyer, seller);
+        state = State.Disputed;
+    }
+
+    // Escrow Agent's decision on the dispute
+    function resolveDispute(bool isRelease) public {
+        require(msg.sender == escrowAgent, "Only the Escrow Agent can resolve a dispute.");
+        require(state == State.Disputed, "The escrow is not in the Disputed state.");
+
+        if (isRelease) {
+            balances[seller] += amount;
+            balances[buyer] -= amount;
+
+            emit Release(seller, amount);
+            state = State.Released;
+        } else {
+            balances[buyer] += amount;
+            balances[escrowAgent] -= amount;
+
+            emit Cancel(buyer);
+            state = State.Cancelled;
+        }
+    }
+
+    // Refund to the Buyer in case of contract cancellation or unmet conditions
+    function cancel() public {
+        require(msg.sender == escrowAgent, "Only the Escrow Agent can cancel the escrow.");
+        require(state == State.Disputed || state == State.Cancelled, "The escrow is not in the Disputed or Cancelled state.");
+
+        balances[buyer] += amount;
+        balances[escrowAgent] -= amount;
+
+        emit Cancel(buyer);
+        state = State.Cancelled;
+    }
+
+    // Prevent unauthorized access or tampering
+    modifier onlyRole(Role _role) {
+        require(msg.sender == buyer || msg.sender == seller || msg.sender == escrowAgent, "Unauthorized access.");
+        require(state != State.Released, "The escrow is already Released.");
+
