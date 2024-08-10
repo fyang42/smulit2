@@ -10,8 +10,9 @@ from prompts.legal.nda import NDATemplate
 from prompts.legal.rental_agreement import RentalAgreementTemplate
 from prompts.legal.secure_data_management import SecureDataManagementTemplate
 from llm.groq import Groq
+from blockchain import Blockchain
 
-
+# Load environment variables
 load_dotenv()
 
 API_KEY = os.getenv('GROQ_API_KEY')
@@ -113,10 +114,36 @@ def save_contract_to_file(contract_name, contract_data):
     filename = f"{contract_name.replace(' ', '_')}_contract.txt"
     with open(filename, 'w') as file:
         file.write(contract_data)
-    messagebox.showinfo("Saved", f"Contract saved as {filename}")
+    return filename
 
-def display_contract_output(contract_name, output_data):
+def upload_contract_to_blockchain(contract_name, contract_data, blockchain):
+    transaction_index = blockchain.new_transaction(
+        sender="user_wallet_address",  # Placeholder for a real user wallet address
+        recipient="contract_deployment_address",  # Placeholder for the deployment address
+        contract_data=contract_data
+    )
+    
+    block = blockchain.new_block()
+    
+    log_message = (
+        f"Contract '{contract_name}' uploaded to the blockchain.\n"
+        f"Transaction Index: {transaction_index}\n"
+        f"Block Index: {block.index}\n"
+        f"Previous Hash: {block.previous_hash}\n"
+        f"Block Hash: {block.hash}\n"
+        f"Transactions in Block: {len(block.transactions)}\n"
+        f"Timestamp: {block.timestamp}\n"
+    )
+    
+    filename = f"{contract_name.replace(' ', '_')}_contract.txt"
+    with open(filename, 'a') as file:
+        file.write("\n" + log_message + "\n")
+
+    messagebox.showinfo("Blockchain Upload", log_message)
+
+def display_contract_output(contract_name, output_data, blockchain):
     save_contract_to_file(contract_name, output_data)
+    upload_contract_to_blockchain(contract_name, output_data, blockchain)
 
     root = tk.Tk()
     root.title("Generated Legal Contract")
@@ -135,6 +162,7 @@ def display_contract_output(contract_name, output_data):
 
 def main():
     llm = Groq(model_id=MODEL_ID, api_key=API_KEY)
+    blockchain = Blockchain()
 
     contract_options = get_contract_options()
     selected_contract = get_user_selection(contract_options)
@@ -146,7 +174,8 @@ def main():
                                                contract_options[selected_contract], 
                                                details)
         display_contract_output(selected_contract, 
-                                generated_contract)
+                                generated_contract,
+                                blockchain)
     else:
         messagebox.showerror("Error", "No contract type selected.")
 
