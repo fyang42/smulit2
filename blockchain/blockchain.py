@@ -32,3 +32,13 @@ class Blockchain:
 
     def get_chain(self):
         return self.chain
+
+    def query_blockchain(self, block_index=None):
+        if block_index is not None:
+            if 0 <= block_index < len(self.chain):
+                return self.chain[block_index]
+            else:
+                return None
+        else:
+            return self.chain
+
